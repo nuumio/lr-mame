@@ -1192,8 +1192,7 @@ endif
 .PHONY: android-ndk
 android-ndk:
 ifndef ANDROID_NDK_HOME
-	#$(error ANDROID_NDK_HOME is not set)
-	ANDROID_NDK_HOME=$(ANDROID_NDK_ROOT)
+	$(error ANDROID_NDK_HOME is not set)
 endif
 ifndef SDL_INSTALL_ROOT
 	$(error SDL_INSTALL_ROOT is not set)

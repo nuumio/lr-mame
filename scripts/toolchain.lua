@@ -732,11 +732,11 @@ function toolchain(_buildDir, _subDir)
 			linkoptions { "-fPIC" }
 		end
 
-		-- Don't use BGFX (Defaults to 1 for Windows if unset)
-		 USE_BGFX = 0
--- _OPTIONS["USE_BGFX"] = "1"
 		-- libretro only supports the retro OSD
 		_OPTIONS["osd"] = "retro"
+
+		-- Don't use BGFX
+		_OPTIONS["NO_USE_BGFX"] = "1"
 
 		-- libretro does not (yet) support MIDI.
 		_OPTIONS["NO_USE_MIDI"] = "1"
