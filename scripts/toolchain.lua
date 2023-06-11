@@ -72,12 +72,10 @@ function toolchain(_buildDir, _subDir)
 
 	location (_buildDir .. "projects/" .. _subDir .. "/".. _ACTION)
 
-	local androidPlatform = "android-24"
 	local androidApiLevel = 24
 	if _OPTIONS["with-android"] then
 		androidApiLevel = _OPTIONS["with-android"]
 	end
-	androidPlatformNumber = androidPlatform:sub(9)
 
 	if _ACTION == "gmake" or _ACTION == "ninja" then
 
@@ -482,7 +480,6 @@ function toolchain(_buildDir, _subDir)
 
 	configuration { "android-*" }
 		objdir (_buildDir .. "android/obj/" .. _OPTIONS["PLATFORM"])
-
 		flags {
 			"NoImportLib",
 		}
@@ -492,9 +489,6 @@ function toolchain(_buildDir, _subDir)
 			"m",
 			"android",
 			"log",
-			"c++_static",
-			"c++abi",
-			"stdc++",
 		}
 		buildoptions_c {
 			"--gcc-toolchain=" .. androidToolchainRoot(),
@@ -526,57 +520,24 @@ function toolchain(_buildDir, _subDir)
 		}
 
 	configuration { "android-arm" }
-			libdirs {
-				"$(ANDROID_NDK_ROOT)/sources/cxx-stl/llvm-libc++/libs/armeabi-v7a",
-				"$(ANDROID_NDK_LLVM)/sysroot/usr/lib/arm-linux-androideabi/" .. androidPlatformNumber,
-			}
-			includedirs {
-			}
 			buildoptions {
-				"-gcc-toolchain $(ANDROID_NDK_ARM)",
-				"-target armv7-linux-androideabi" .. androidPlatformNumber,
+				"--target=armv7-none-linux-android" .. androidApiLevel,
 				"-march=armv7-a",
 				"-mfloat-abi=softfp",
 				"-mfpu=neon",
 				"-mthumb",
 			}
-
-			links {
-				"android_support",
-				"unwind",
-				"gcc",
-			}
 			linkoptions {
-				"-gcc-toolchain $(ANDROID_NDK_ARM)",
-				"--sysroot=$(ANDROID_NDK_LLVM)/sysroot/usr/lib/arm-linux-androideabi/" .. androidPlatformNumber,
-				"$(ANDROID_NDK_LLVM)/sysroot/usr/lib/arm-linux-androideabi/" .. androidPlatformNumber .. "/crtbegin_so.o",
-				"$(ANDROID_NDK_LLVM)/sysroot/usr/lib/arm-linux-androideabi/" .. androidPlatformNumber .. "/crtend_so.o",
-				"-target armv7-linux-androideabi" .. androidPlatformNumber,
+				"--target=armv7-none-linux-android" .. androidApiLevel,
 				"-march=armv7-a",
 			}
 
 	configuration { "android-arm64" }
-			libdirs {
-				"$(ANDROID_NDK_ROOT)/sources/cxx-stl/llvm-libc++/libs/arm64-v8a",
-				"$(ANDROID_NDK_LLVM)/sysroot/usr/lib/aarch64-linux-android/" .. androidPlatformNumber,
-			}
-			includedirs {
-			}
 			buildoptions {
-				"-gcc-toolchain $(ANDROID_NDK_ARM64)",
-				"-target aarch64-linux-android" .. androidPlatformNumber,
-				"-march=armv8-a",
-			}
-			links {
-				"gcc",
+				"--target=aarch64-none-linux-android" .. androidApiLevel,
 			}
 			linkoptions {
-				"-gcc-toolchain $(ANDROID_NDK_ARM64)",
-				"--sysroot=$(ANDROID_NDK_LLVM)/sysroot/usr/lib/aarch64-linux-android/" .. androidPlatformNumber,
-				"$(ANDROID_NDK_LLVM)/sysroot/usr/lib/aarch64-linux-android/" .. androidPlatformNumber .. "/crtbegin_so.o",
-				"$(ANDROID_NDK_LLVM)/sysroot/usr/lib/aarch64-linux-android/" .. androidPlatformNumber .. "/crtend_so.o",
-				"-target aarch64-linux-android" .. androidPlatformNumber,
-				"-march=armv8-a",
+				"--target=aarch64-none-linux-android" .. androidApiLevel,
 			}
 
 	configuration { "android-x86" }
@@ -592,26 +553,11 @@ function toolchain(_buildDir, _subDir)
 		}
 
 	configuration { "android-x64" }
-		libdirs {
-			"$(ANDROID_NDK_ROOT)/sources/cxx-stl/llvm-libc++/libs/x86_64",
-			"$(ANDROID_NDK_LLVM)/sysroot/usr/lib/x86_64-linux-android/" .. androidPlatformNumber,
-		}
-		includedirs {
-		}
 		buildoptions {
-			"-gcc-toolchain $(ANDROID_NDK_X64)",
-			"-target x86_64-linux-android" .. androidPlatformNumber,
-		}
-		links {
-			"gcc",
+			"--target=x86_64-none-linux-android" .. androidApiLevel,
 		}
 		linkoptions {
-			"-gcc-toolchain $(ANDROID_NDK_X64)",
-			"-target x86_64-linux-android" .. androidPlatformNumber,
-			"--sysroot=$(ANDROID_NDK_LLVM)/sysroot/usr/lib/x86_64-linux-android/" .. androidPlatformNumber,
-			"$(ANDROID_NDK_LLVM)/sysroot/usr/lib/x86_64-linux-android/" .. androidPlatformNumber .. "/crtbegin_so.o",
-			"$(ANDROID_NDK_LLVM)/sysroot/usr/lib/x86_64-linux-android/" .. androidPlatformNumber .. "/crtend_so.o",
-			"-target x86_64-linux-android" .. androidPlatformNumber,
+			"--target=x86_64-none-linux-android" .. androidApiLevel,
 		}
 
 	configuration { "asmjs" }
