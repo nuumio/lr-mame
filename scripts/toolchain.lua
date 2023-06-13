@@ -656,12 +656,12 @@ function toolchain(_buildDir, _subDir)
 				targetos = "macosx"
 			elseif LIBRETRO_OS:sub(1, 4)=="armv" then
 				targetos = "android"
-                        elseif LIBRETRO_OS=="ios" then
+			elseif LIBRETRO_OS=="ios" then
 				targetos = "ios"
-                        elseif LIBRETRO_OS=="win32" then
-				targetos = "win32"
+			elseif LIBRETRO_OS=="win" then
+				targetos = "win"
 			end
-			_OPTIONS["TARGETOS"] = targetos
+			_OPTIONS["targetos"] = targetos
 		end
 
 		-- FIXME: set BIGENDIAN and dynarec based on retro_platform/retro_arch
@@ -671,9 +671,8 @@ function toolchain(_buildDir, _subDir)
 			end
 		end
 
-
 		-- MS and Apple don't need -fPIC, but pretty much everything else does.
-		if _OPTIONS["targetos"] ~= "windows" and _OPTIONS["targetos"] ~= "macosx" then
+		if _OPTIONS["targetos"] ~= "win" and _OPTIONS["targetos"] ~= "macosx" then
 			buildoptions { "-fPIC" }
 			linkoptions { "-fPIC" }
 		end

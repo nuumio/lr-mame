@@ -1832,6 +1832,7 @@ project "asmjit"
 
 	configuration { }
 
+	local version = str_to_version(_OPTIONS["gcc_version"])
 	if _OPTIONS["targetos"]=="macosx" and _OPTIONS["gcc"]~=nil then
 		if string.find(_OPTIONS["gcc"], "clang") and (version < 80000) then
 			defines {
