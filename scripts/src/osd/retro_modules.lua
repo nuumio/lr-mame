@@ -75,6 +75,8 @@ function osdmodulesbuild()
 		MAME_DIR .. "src/osd/modules/netdev/none.cpp",
 		MAME_DIR .. "src/osd/modules/midi/none.cpp",
 		MAME_DIR .. "src/osd/modules/sound/none.cpp",
+		MAME_DIR .. "src/osd/modules/input/assignmenthelper.cpp",
+		MAME_DIR .. "src/osd/modules/input/assignmenthelper.h",
 		MAME_DIR .. "src/osd/modules/input/input_module.h",
 		MAME_DIR .. "src/osd/modules/input/input_common.cpp",
 		MAME_DIR .. "src/osd/modules/input/input_common.h",
@@ -105,11 +107,6 @@ function osdmodulesbuild()
 	end
 
 	defines {
-			"USE_OPENGL=0",
-		}
-
-
-	defines {
 		"__STDC_LIMIT_MACROS",
 		"__STDC_FORMAT_MACROS",
 		"__STDC_CONSTANT_MACROS",
@@ -117,9 +114,8 @@ function osdmodulesbuild()
 	}
 
 	files {
-		MAME_DIR .. "src/osd/modules/render/aviwrite.cpp",
-		MAME_DIR .. "src/osd/modules/render/aviwrite.h",
-
+		--MAME_DIR .. "src/osd/modules/render/aviwrite.cpp",
+		--MAME_DIR .. "src/osd/modules/render/aviwrite.h",
 	}
 	includedirs {
 		MAME_DIR .. "3rdparty/bx/include",
@@ -127,17 +123,12 @@ function osdmodulesbuild()
 	}
 
 	defines {
-			"NO_USE_MIDI",
-		}
-
-	defines {
-			"NO_USE_PORTAUDIO",
-		}
-
-	defines {
-			"USE_QTDEBUG=0",
-		}
-
+        "NO_USE_MIDI",
+        "NO_USE_PORTAUDIO",
+        "NO_USE_BGFX",
+        "USE_QTDEBUG=0",
+        "USE_OPENGL=0",
+    }
 
 end
 
@@ -222,6 +213,15 @@ newoption {
 	allowed = {
 		{ "0",  "Enable PortAudio"  },
 		{ "1",  "Disable PortAudio" },
+	},
+}
+
+newoption {
+	trigger = "NO_USE_BGFX",
+	description = "Disable BGFX",
+	allowed = {
+		{ "0",  "Enable BGFX"  },
+		{ "1",  "Disable BGFX" },
 	},
 }
 

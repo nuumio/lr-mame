@@ -19,6 +19,7 @@
 #include "osdepend.h"
 #include "emu.h"
 #include "emuopts.h"
+#include "main.h"
 #include "strconv.h"
 #include "corestr.h"
 
@@ -35,7 +36,7 @@
 class retro_output : public osd_output
 {
 public:
-	virtual void output_callback(osd_output_channel channel, const util::format_argument_pack<std::ostream> &args) override
+	virtual void output_callback(osd_output_channel channel, const util::format_argument_pack<char> &args) override
 	{
 		std::ostringstream buffer;
 		retro_log_level lvl;
@@ -163,15 +164,14 @@ const options_entry retro_options::s_option_entries[] =
 };
 
 //============================================================
-//  sdl_options
+//  retro_options
 //============================================================
 
-retro_options::retro_options()
-: osd_options()
+retro_options::retro_options() : osd_options()
 {
 	std::string ini_path(INI_PATH);
 	add_entries(retro_options::s_option_entries);
-	strreplace(ini_path,"APP_NAME", emulator_info::get_appname_lower());
+	strreplace(ini_path, "APP_NAME", emulator_info::get_appname_lower());
 	set_default_value(RETROOPTION_INIPATH, ini_path.c_str());
 }
 
@@ -184,33 +184,34 @@ retro_osd_interface *retro_global_osd;
 // translated to utf8_main
 int mmain(int argc, char *argv[])
 {
+	std::vector<std::string> args(argv, argv+argc);
 	int res = 0;
 
-	std::vector<std::string> args(argv, argv+argc);
-
-	static retro_options retro_global_options;
 	// disable I/O buffering
 	setvbuf(stdout, (char *) nullptr, _IONBF, 0);
 	setvbuf(stderr, (char *) nullptr, _IONBF, 0);
-#if !defined(RETROMAME_WIN32)
+
+#if 0
 	// Initialize crash diagnostics
 	diagnostics_module::get_instance()->init_crash_diagnostics();
 #endif
-#if defined(RETROMAME_ANDROID)
+
+#if defined(SDLMAME_ANDROID)
 	/* Enable standard application logging */
-//	SDL_LogSetPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_VERBOSE);
+	SDL_LogSetPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_VERBOSE);
 #endif
 
 	// FIXME: this should be done differently
 
 #ifdef RETROMAME_UNIX
-	//sdl_entered_debugger = 0;
+	retro_entered_debugger = 0;
 #if (!defined(SDLMAME_MACOSX)) && (!defined(SDLMAME_HAIKU)) && (!defined(SDLMAME_EMSCRIPTEN)) && (!defined(SDLMAME_ANDROID))  && (!defined(RETROMAME))
 	FcInit();
 #endif
 #endif
 
 	{
+		static retro_options retro_global_options;
 		retro_global_osd = new retro_osd_interface(retro_global_options);
 
 		retro_output retrooutput;
@@ -218,16 +219,16 @@ int mmain(int argc, char *argv[])
 
 		retro_global_osd->register_options();
 
-		res = emulator_info::start_frontend(retro_global_options, *retro_global_osd,args);
-		
+		res = emulator_info::start_frontend(retro_global_options, *retro_global_osd, args);
+
 		osd_output::pop(&retrooutput);
-		
+
 		return res;
 	}
 
 #ifdef RETROMAME_UNIX
 #if (!defined(SDLMAME_MACOSX)) && (!defined(SDLMAME_HAIKU)) && (!defined(SDLMAME_EMSCRIPTEN)) && (!defined(SDLMAME_ANDROID)) && (!defined(RETROMAME))
-	if (!sdl_entered_debugger)
+	if (!retro_entered_debugger)
 	{
 		FcFini();
 	}
@@ -242,7 +243,7 @@ int mmain(int argc, char *argv[])
 //============================================================
 
 retro_osd_interface::retro_osd_interface(retro_options &options)
-: osd_common_t(options), m_options(options)
+	: osd_common_t(options), m_options(options)
 {
 }
 
@@ -263,15 +264,6 @@ retro_osd_interface::~retro_osd_interface()
 void retro_osd_interface::osd_exit()
 {
 	osd_common_t::osd_exit();
-}
-
-//============================================================
-//  video_register
-//============================================================
-
-void retro_osd_interface::video_register()
-{
-	video_options_add("soft", nullptr);
 }
 
 
@@ -318,7 +310,6 @@ void retro_osd_interface::init(running_machine &machine)
 		using namespace std::placeholders;
 		machine.add_logerror_callback(std::bind(&retro_osd_interface::output_oslog, this, _1));
 	}
-
 }
 
 
@@ -337,7 +328,7 @@ void retro_osd_interface::customize_input_type_list(std::vector<input_type_entry
 		switch (entry.type())
 		{
 			// Retro:  Select + X => UI_CONFIGURE (Menu)
-			case IPT_UI_CONFIGURE:
+			case IPT_UI_MENU:
 				entry.defseq(SEQ_TYPE_STANDARD).set(KEYCODE_TAB, input_seq::or_code, JOYCODE_SELECT, JOYCODE_BUTTON3);
 				break;
 

@@ -153,11 +153,6 @@ newoption {
 }
 
 newoption {
-	trigger = 'with-bundled-sdl2',
-	description = 'Build bundled SDL2 library',
-}
-
-newoption {
 	trigger = "distro",
 	description = "Choose distribution",
 	allowed = {
@@ -552,13 +547,8 @@ if _OPTIONS["targetos"] == "android" then
 end
 end
 -- RETRO HACK END no sdl for libretro android
-configuration {}
 
-if _OPTIONS["osd"] == "uwp" then
-	windowstargetplatformversion("10.0.14393.0")
-	windowstargetplatformminversion("10.0.14393.0")
-	premake._filelevelconfig = true
-end
+configuration {}
 
 msgcompile ("Compiling $(subst ../,,$<)...")
 
@@ -1056,6 +1046,7 @@ end
 -- warnings only applicable to C++ compiles
 	buildoptions_cpp {
 		"-Woverloaded-virtual",
+		"-Wvla",
 	}
 
 if _OPTIONS["SANITIZE"] then
@@ -1140,7 +1131,7 @@ end
 				"-Wimplicit-fallthrough",
 			}
 			buildoptions {
-				"-Wno-unused-result", -- needed for fgets,fread on linux
+				"-Wno-error=unused-result", -- needed for fgets,fread on linux
 				-- array bounds checking seems to be buggy in 4.8.1 (try it on video/stvvdp1.c and video/model1.c without -Wno-array-bounds)
 				"-Wno-array-bounds",
 				"-Wno-error=attributes", -- GCC fails to recognize some uses of [[maybe_unused]]
@@ -1169,6 +1160,11 @@ end
 				buildoptions {
 					"-Wno-error=maybe-uninitialized",
 					"-Wno-error=uninitialized",   -- netlist
+				}
+			end
+			if version >= 130000 then
+				buildoptions_cpp {
+					"-Wno-xor-used-as-pow",
 				}
 			end
 		end
@@ -1279,23 +1275,10 @@ configuration { "asmjs" }
 
 configuration { "android*" }
 	buildoptions {
-		"-Wno-undef",
-		"-Wno-typedef-redefinition",
-		"-Wno-unknown-warning-option",
-		"-Wno-incompatible-ms-struct",
-	}
-	buildoptions_cpp {
-		"-std=c++17",
-		"-Wno-extern-c-compat",
-		"-Wno-tautological-constant-out-of-range-compare",
-		"-Wno-tautological-pointer-compare",
+		"-Wno-error=undef", -- in ASIO
+		"-Wno-error=macro-redefined", -- PAGE_SIZE,PAGE_MASK in fairlight/cmi.cpp
 	}
 	archivesplit_size "20"
-
-configuration { "android-arm64" }
-	buildoptions {
-		"-Wno-asm-operand-widths",
-	}
 
 configuration { "linux-*" }
 		links {
@@ -1313,7 +1296,7 @@ configuration { "linux-*" }
 		end
 
 
-configuration { "netbsd" }
+configuration { "freebsd or netbsd" }
 		flags {
 			"LinkSupportCircularDependencies",
 		}

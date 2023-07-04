@@ -8,6 +8,7 @@
 #ifndef INPUT_RETRO_H_
 #define INPUT_RETRO_H_
 
+#include "osdretro.h"
 
 
 //============================================================
@@ -20,17 +21,17 @@ typedef struct joystate_t
    int a1[2];
    int a2[2];
    int a3[2];
-}Joystate;
+} Joystate;
 
 typedef struct mousestate_t
 {
    int mouseBUT[4];
-}Mousestate;
+} Mousestate;
 
 typedef struct lightgunstate_t
 {
    int lightgunBUT[4];
-}Lightgunstate;
+} Lightgunstate;
 
 struct KeyPressEventArgs
 {
@@ -41,14 +42,14 @@ struct KeyPressEventArgs
 
 struct kt_table
 {
-   const char  *   mame_key_name;
+   const char *mame_key_name;
    int retro_key_name;
-   input_item_id   mame_key;
+   input_item_id mame_key;
 };
 
-extern uint16_t retrokbd_state[RETROK_LAST];
-extern uint16_t retrokbd_state2[RETROK_LAST];
-extern kt_table ktable[];
+extern unsigned short retrokbd_state[RETROK_LAST];
+extern unsigned short retrokbd_state2[RETROK_LAST];
+extern kt_table const ktable[];
 
 extern int mouseLX[8];
 extern int mouseLY[8];
@@ -61,30 +62,20 @@ extern Joystate joystate[8];
 extern int fb_width;
 extern int fb_height;
 
-class retroinput_module : public input_module_base
+template <typename Info>
+class retro_input_module : public input_module_impl<Info, retro_osd_interface>
 {
 protected:
 	bool  m_global_inputs_enabled;
 
 public:
-	retroinput_module(const char * type, const char * name)
-		: input_module_base(type, name),
-			m_global_inputs_enabled(false)
+	retro_input_module(const char *type, const char *name)
+		: input_module_impl<Info, retro_osd_interface>(type, name),
+			m_global_inputs_enabled(true)
 	{
 	}
 
-	virtual bool should_hide_mouse()
-	{
-		if (/*winwindow_has_focus()  // has focus
-			&& (!video_config.windowed || !osd_common_t::s_window_list.front()->win_has_menu()) // not windowed or doesn't have a menu
-			&&*/ (input_enabled() && !input_paused()) // input enabled and not paused
-			&& (mouse_enabled() || lightgun_enabled())) // either mouse or lightgun enabled in the core
-		{
-			return true;
-		}
-
-		return false;
-	}
+	bool input_enabled() const { return m_global_inputs_enabled; }
 
 	virtual bool handle_input_event(void)
 	{
@@ -92,18 +83,6 @@ public:
 	}
 
 protected:
-
-	void before_poll(running_machine& machine) override
-	{
-		// periodically process events, in case they're not coming through
-		// this also will make sure the mouse state is up-to-date
-		//winwindow_process_events_periodic(machine);
-	}
-
-	bool should_poll_devices(running_machine &machine) override
-	{
-		return input_enabled() && (m_global_inputs_enabled /*|| winwindow_has_focus()*/);
-	}
 };
 
 #endif

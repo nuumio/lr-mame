@@ -6,38 +6,85 @@
 
 #include "input_module.h"
 #include "modules/osdmodule.h"
+//#include "../lib/osdobj_common.h"
+#include "assignmenthelper.h"
+
+// emu
+#include "inpttype.h"
 
 // MAME headers
 #include "emu.h"
 #include "uiinput.h"
 #include "corestr.h"
 
+#include "input_common.h"
+#include "input_retro.h"
+
+#include "libretro/osdretro.h"
+#include "libretro/window.h"
 #include "libretro/libretro-internal/libretro.h"
 #include "libretro/libretro-internal/libretro_shared.h"
 
-#include "../lib/osdobj_common.h"
 
-#include "input_common.h"
-#include "input_retro.h"
-#include "../../libretro/osdretro.h"
-#include "../../libretro/window.h"
 
 extern bool libretro_supports_bitmasks;
-uint16_t retrokbd_state[RETROK_LAST];
-uint16_t retrokbd_state2[RETROK_LAST];
+unsigned short retrokbd_state[RETROK_LAST];
+unsigned short retrokbd_state2[RETROK_LAST];
 int mouseLX[8];
 int mouseLY[8];
+int lightgunX[8];
+int lightgunY[8];
+
 Joystate joystate[8];
 Mousestate mousestate[8];
 Lightgunstate lightgunstate[8];
 
-int lightgunX[8], lightgunY[8];
+unsigned mouse_count = 0;
+unsigned joy_count = 0;
+unsigned lightgun_count = 0;
 
 #ifndef RETROK_TILDE
 #define RETROK_TILDE 178
 #endif
 
-kt_table ktable[]={
+enum
+{
+	SWITCH_B,           // button bits
+	SWITCH_A,
+	SWITCH_Y,
+	SWITCH_X,
+	SWITCH_L1,
+	SWITCH_R1,
+	SWITCH_L3,
+	SWITCH_R3,
+	SWITCH_START,
+	SWITCH_SELECT,
+
+	SWITCH_DPAD_UP,     // D-pad bits
+	SWITCH_DPAD_DOWN,
+	SWITCH_DPAD_LEFT,
+	SWITCH_DPAD_RIGHT,
+
+	SWITCH_L2,          // for arcade stick/pad with LT/RT buttons
+	SWITCH_R2,
+
+	SWITCH_TOTAL
+};
+
+enum
+{
+	AXIS_L2,            // half-axes for triggers
+	AXIS_R2,
+
+	AXIS_LSX,           // full-precision axes
+	AXIS_LSY,
+	AXIS_RSX,
+	AXIS_RSY,
+
+	AXIS_TOTAL
+};
+
+kt_table const ktable[] = {
 {"A",RETROK_a,ITEM_ID_A},
 {"B",RETROK_b,ITEM_ID_B},
 {"C",RETROK_c,ITEM_ID_C},
@@ -541,36 +588,52 @@ void Input_Binding(running_machine &machine)
    }
 }
 
+
+bool retro_osd_interface::should_hide_mouse()
+{
+	// if we are paused, no
+	if (machine().paused())
+		return false;
+
+	// if neither mice nor lightguns are enabled in the core, then no
+	if (!options().mouse() && !options().lightgun())
+		return false;
+#if 0
+	if (!mouse_over_window())
+		return false;
+#endif
+	// otherwise, yes
+	return true;
+}
+
 void retro_osd_interface::release_keys()
 {
-	auto keybd = dynamic_cast<input_module_base*>(m_keyboard_input);
-	if (keybd != nullptr)
-		keybd->devicelist().reset_devices();
+	auto const keybd = dynamic_cast<input_module_base*>(m_keyboard_input);
+	if (keybd)
+		keybd->reset_devices();
 }
 
 void retro_osd_interface::process_keyboard_state(running_machine &machine)
 {
-   /* TODO: handle mods:SHIFT/CTRL/ALT/META/NUMLOCK/CAPSLOCK/SCROLLOCK */
-   unsigned i = 0;
-   do
-   {
-      retrokbd_state[ktable[i].retro_key_name] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0,ktable[i].retro_key_name) ? 0x80 : 0;
+	/* TODO: handle mods:SHIFT/CTRL/ALT/META/NUMLOCK/CAPSLOCK/SCROLLOCK */
+	unsigned i = 0;
+	do
+	{
+		retrokbd_state[ktable[i].retro_key_name] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, ktable[i].retro_key_name) ? 0x80 : 0;
 
-      if(retrokbd_state[ktable[i].retro_key_name] && retrokbd_state2[ktable[i].retro_key_name] == 0)
-      {
-         //ui_ipt_pushchar=ktable[i].retro_key_name;
-	//FIXME remove up/dw/lf/rg char from input ui
-	 machine.ui_input().push_char_event(osd_common_t::s_window_list.front()->target(), ktable[i].retro_key_name);
+		if (retrokbd_state[ktable[i].retro_key_name] && !retrokbd_state2[ktable[i].retro_key_name])
+		{
+			//ui_ipt_pushchar=ktable[i].retro_key_name;
+			//FIXME remove up/dw/lf/rg char from input ui
+			machine.ui_input().push_char_event(osd_common_t::s_window_list.front()->target(), ktable[i].retro_key_name);
+			retrokbd_state2[ktable[i].retro_key_name] = 1;
+		}
+		else
+		if (!retrokbd_state[ktable[i].retro_key_name] && retrokbd_state2[ktable[i].retro_key_name])
+			retrokbd_state2[ktable[i].retro_key_name] = 0;
 
-
-         retrokbd_state2[ktable[i].retro_key_name]=1;
-      }
-      else if(!retrokbd_state[ktable[i].retro_key_name] && retrokbd_state2[ktable[i].retro_key_name] == 1)
-         retrokbd_state2[ktable[i].retro_key_name]=0;
-
-      i++;
-
-   }while(ktable[i].retro_key_name!=-1);
+		i++;
+	} while (ktable[i].retro_key_name != -1);
 }
 
 void retro_osd_interface::process_joypad_state(running_machine &machine)
@@ -631,6 +694,8 @@ void retro_osd_interface::process_joypad_state(running_machine &machine)
 void retro_osd_interface::process_mouse_state(running_machine &machine)
 {
    unsigned i;
+   auto &window = osd_common_t::window_list().front();
+
    for(i = 0;i < 8; i++)
    {
          static int mbL[8] = {0}, mbR[8] = {0}, mbM[8] = {0};
@@ -648,8 +713,8 @@ void retro_osd_interface::process_mouse_state(running_machine &machine)
          mouse_l[i] = input_state_cb(i, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_LEFT);
          mouse_r[i] = input_state_cb(i, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_RIGHT);
          mouse_m[i] = input_state_cb(i, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_MIDDLE);
-         mouseLX[i] = mouse_x[i]*osd::INPUT_RELATIVE_PER_PIXEL;
-         mouseLY[i] = mouse_y[i]*osd::INPUT_RELATIVE_PER_PIXEL;
+         mouseLX[i] = mouse_x[i] * osd::input_device::RELATIVE_PER_PIXEL;
+         mouseLY[i] = mouse_y[i] * osd::input_device::RELATIVE_PER_PIXEL;
 
          static int vmx=fb_width/2,vmy=fb_height/2;
          static int ovmx=fb_width/2,ovmy=fb_height/2;
@@ -660,10 +725,10 @@ void retro_osd_interface::process_mouse_state(running_machine &machine)
          if(vmy>fb_height)vmy=fb_height-1;
          if(vmx<0)vmx=0;
          if(vmy<0)vmy=0;
-         if(vmx!=ovmx || vmy!=ovmy){
-	        int cx = -1, cy = -1;
-	        auto window = osd_common_t::s_window_list.front();
 
+         if (vmx != ovmx || vmy != ovmy)
+         {
+	        int cx = -1, cy = -1;
 	        if (window != nullptr && window->renderer().xy_to_render_target(vmx, vmy, &cx, &cy))
 					machine.ui_input().push_mouse_move_event(window->target(), cx, cy);
          }
@@ -678,7 +743,6 @@ void retro_osd_interface::process_mouse_state(running_machine &machine)
 			if(i==0)
 			{
 				int cx = -1, cy = -1;
-				auto window = osd_common_t::s_window_list.front();
 				//FIXME doubleclick
 				if (window != nullptr && window->renderer().xy_to_render_target(vmx, vmy, &cx, &cy))
 						machine.ui_input().push_mouse_down_event(window->target(), cx, cy);
@@ -692,7 +756,6 @@ void retro_osd_interface::process_mouse_state(running_machine &machine)
 			if(i==0)
 			{
 				int cx = -1, cy = -1;
-				auto window = osd_common_t::s_window_list.front();
 				if (window != nullptr && window->renderer().xy_to_render_target(vmx, vmy, &cx, &cy))
 						machine.ui_input().push_mouse_up_event(window->target(), cx, cy);
 			}
@@ -706,7 +769,6 @@ void retro_osd_interface::process_mouse_state(running_machine &machine)
 			if(i==0)
 			{
 				int cx = -1, cy = -1;
-				auto window = osd_common_t::s_window_list.front();
 				if (window != nullptr && window->renderer().xy_to_render_target(vmx, vmy, &cx, &cy))
 						machine.ui_input().push_mouse_rdown_event(window->target(), cx, cy);
 			}
@@ -719,7 +781,6 @@ void retro_osd_interface::process_mouse_state(running_machine &machine)
 			if(i==0)
 			{
 				int cx = -1, cy = -1;
-				auto window = osd_common_t::s_window_list.front();
 				if (window != nullptr && window->renderer().xy_to_render_target(vmx, vmy, &cx, &cy))
 						machine.ui_input().push_mouse_rup_event(window->target(), cx, cy);
 			}
@@ -832,6 +893,9 @@ void retro_osd_interface::process_lightgun_state(running_machine &machine)
    }
 }
 
+
+namespace osd {
+
 //============================================================
 //  retro_keyboard_device
 //============================================================
@@ -840,25 +904,34 @@ void retro_osd_interface::process_lightgun_state(running_machine &machine)
 class retro_keyboard_device : public event_based_device<KeyPressEventArgs>
 {
 public:
-
-	retro_keyboard_device(running_machine& machine, std::string &&name, std::string &&id, input_module &module)
-		: event_based_device(machine, std::move(name), std::move(id), DEVICE_CLASS_KEYBOARD, module)
+	retro_keyboard_device(std::string &&name, std::string &&id, input_module &module)
+		: event_based_device(std::move(name), std::move(id), module)
 	{
 	}
 
-	void reset() override
+	virtual void reset() override
 	{
-		int i;
-   		for(i = 0; i < RETROK_LAST; i++){
-      			retrokbd_state[i]=0;
-      			retrokbd_state2[i]=0;
-   		}
+		memset(retrokbd_state, 0, sizeof(retrokbd_state));
+		memset(retrokbd_state2, 0, sizeof(retrokbd_state2));
+	}
+
+	virtual void configure(input_device &device) override
+	{
+		int i = 0;
+		do {
+			device.add_item(
+				ktable[i].mame_key_name,
+				std::string_view(),
+				ktable[i].mame_key,
+				generic_button_get_state<std::uint8_t>,
+				&retrokbd_state[ktable[i].retro_key_name]);
+			i++;
+		} while (ktable[i].retro_key_name != -1);
 	}
 
 protected:
-	void process_event(KeyPressEventArgs &args) /*override*/
+	virtual void process_event(KeyPressEventArgs const &args)
 	{
-//		printf("here\n");
 	}
 };
 
@@ -866,38 +939,26 @@ protected:
 //  keyboard_input_retro - retro keyboard input module
 //============================================================
 
-class keyboard_input_retro : public retroinput_module
+class keyboard_input_retro : public retro_input_module<retro_keyboard_device>
 {
 private:
 
 public:
 	keyboard_input_retro()
-		: retroinput_module(OSD_KEYBOARDINPUT_PROVIDER, "retro")
+		: retro_input_module(OSD_KEYBOARDINPUT_PROVIDER, "retro")
 	{
 	}
 
 	virtual void input_init(running_machine &machine) override
 	{
-		auto &devinfo = devicelist().create_device<retro_keyboard_device>(machine, "RetroKeyboard0", "RetroKeyboard0", *this);
+		retro_input_module<retro_keyboard_device>::input_init(machine);
 
-		int i;
-   		for(i = 0; i < RETROK_LAST; i++){
-		      retrokbd_state[i]=0;
-		      retrokbd_state2[i]=0;
-		}
+		create_device<retro_keyboard_device>(DEVICE_CLASS_KEYBOARD, "RetroKeyboard0", "RetroKeyboard0");
 
-   		i=0;
-   		do{
-			devinfo.device()->add_item(\
-				ktable[i].mame_key_name,\
-				ktable[i].mame_key, \
-				generic_button_get_state<std::uint8_t>,\
-				&retrokbd_state[ktable[i].retro_key_name]);
-      			i++;
-   		}while(ktable[i].retro_key_name!=-1);
+		memset(retrokbd_state, 0, sizeof(retrokbd_state));
+		memset(retrokbd_state2, 0, sizeof(retrokbd_state2));
 
 		m_global_inputs_enabled = true;
-
 	}
 
 	bool handle_input_event(void) override
@@ -905,7 +966,6 @@ public:
 		if (!input_enabled())
 			return false;
 		return true;
-
 	}
 };
 
@@ -918,34 +978,61 @@ public:
 class retro_mouse_device : public event_based_device<KeyPressEventArgs>
 {
 public:
-
-	retro_mouse_device(running_machine &machine, std::string &&name, std::string &&id, input_module &module)
-		: event_based_device(machine, std::move(name), std::move(id), DEVICE_CLASS_MOUSE, module)
+	retro_mouse_device(std::string &&name, std::string &&id, input_module &module)
+		: event_based_device(std::move(name), std::move(id), module)
 	{
 	}
 
-	void poll() override
+	virtual void poll(bool relative_reset) override
 	{
-      event_based_device::poll();
+		event_based_device::poll(relative_reset);
 	}
 
-	void reset() override
+	virtual void reset() override
 	{
-	    int j;
-		for(j = 0; j < 8; j++)
+		for (int j = 0; j < 8; j++)
 		{
-		   mouseLX[j]=fb_width/2;
-		   mouseLY[j]=fb_height/2;
+			mouseLX[j] = fb_width / 2;
+			mouseLY[j] = fb_height / 2;
 
-		   int i;
-   		   for(i = 0; i < 4; i++)mousestate[j].mouseBUT[i]=0;
+			for (int i = 0; i < 4; i++)
+				mousestate[j].mouseBUT[i] = 0;
 		}
 	}
 
-protected:
-	void process_event(KeyPressEventArgs &args) /*override*/
+	virtual void configure(input_device &device) override
 	{
-//		printf("here\n");
+		device.add_item(
+			"X",
+			std::string_view(),
+			static_cast<input_item_id>(ITEM_ID_XAXIS),
+			generic_axis_get_state<std::int32_t>,
+			&mouseLX[mouse_count]);
+        device.add_item(
+			"Y",
+			std::string_view(),
+			static_cast<input_item_id>(ITEM_ID_YAXIS),
+			generic_axis_get_state<std::int32_t>,
+			&mouseLY[mouse_count]);
+
+        for (int button = 0; button < 4; button++)
+        {
+			mousestate[mouse_count].mouseBUT[button] = 0;
+
+			device.add_item(
+				default_button_name(button),
+                std::string_view(),
+                static_cast<input_item_id>(ITEM_ID_BUTTON1 + button),
+                generic_button_get_state<std::int32_t>,
+                &mousestate[mouse_count].mouseBUT[button]);
+        }
+
+        mouse_count++;
+	}
+
+protected:
+	virtual void process_event(KeyPressEventArgs const &args)
+	{
 	}
 };
 
@@ -953,65 +1040,42 @@ protected:
 //  mouse_input_retro - retro mouse input module
 //============================================================
 
-class mouse_input_retro : public retroinput_module
+class mouse_input_retro : public retro_input_module<retro_mouse_device>
 {
 private:
 
 public:
 	mouse_input_retro()
-		: retroinput_module(OSD_MOUSEINPUT_PROVIDER, "retro")
+		: retro_input_module(OSD_MOUSEINPUT_PROVIDER, "retro")
 	{
 	}
 
 	virtual void input_init(running_machine &machine) override
 	{
-		if (!input_enabled() || !mouse_enabled())
+		retro_input_module<retro_mouse_device>::input_init(machine);
+
+		if (!input_enabled() || !options()->mouse())
 			return;
-        int i;
+
 		char defname[32];
 		
-		for(i = 0; i < 8; i++)
+		for (int i = 0; i < 8; i++)
 		{
-		   sprintf(defname, "RetroMouse%d", i);
-		   
-		   auto &devinfo = devicelist().create_device<retro_mouse_device>(machine, defname, defname, *this);
+			sprintf(defname, "RetroMouse%d", i);
+			create_device<retro_mouse_device>(DEVICE_CLASS_MOUSE, defname, defname);
 
-		   mouseLX[i]=fb_width/2;
-		   mouseLY[i]=fb_height/2;
-
-		   devinfo.device()->add_item(
-				   "X",
-				   static_cast<input_item_id>(ITEM_ID_XAXIS),
-				   generic_axis_get_state<std::int32_t>,
-				   &mouseLX[i]);
-		   devinfo.device()->add_item(
-				   "Y",
-				   static_cast<input_item_id>(ITEM_ID_YAXIS),
-				   generic_axis_get_state<std::int32_t>,
-				   &mouseLY[i]);
-
-		   int button;
-		   for (button = 0; button < 4; button++)
-		   {
-			   mousestate[i].mouseBUT[button]=0;
-			   devinfo.device()->add_item(
-				   default_button_name(button),
-				   static_cast<input_item_id>(ITEM_ID_BUTTON1 + button),
-				   generic_button_get_state<std::int32_t>,
-				   &mousestate[i].mouseBUT[button]);
-		   }
+			mouseLX[i] = fb_width / 2;
+			mouseLY[i] = fb_height / 2;
 		}
 
 		m_global_inputs_enabled = true;
-
 	}
 
 	bool handle_input_event(void) override
 	{
-		if (!input_enabled() || !mouse_enabled())
+		if (!input_enabled() || !options()->mouse())
 			return false;
 		return true;
-
 	}
 };
 
@@ -1021,27 +1085,234 @@ public:
 //============================================================
 
 // This device is purely event driven so the implementation is in the module
-class retro_joystick_device : public event_based_device<KeyPressEventArgs>
+class retro_joystick_device : public event_based_device<KeyPressEventArgs>, protected joystick_assignment_helper
 {
 public:
-
-	retro_joystick_device(running_machine &machine, std::string &&name, std::string &&id, input_module &module)
-		: event_based_device(machine, std::move(name), std::move(id), DEVICE_CLASS_JOYSTICK, module)
+	retro_joystick_device(std::string &&name, std::string &&id, input_module &module)
+		: event_based_device(std::move(name), std::move(id), module)
 	{
 	}
 
-	void poll() override
+	virtual void poll(bool relative_reset)
 	{
-		event_based_device::poll();
+		event_based_device::poll(relative_reset);
 	}
 
-	void reset() override
+	virtual void reset() override
 	{
 		memset(&joystate, 0, sizeof(joystate));
 	}
 
+	virtual void configure(osd::input_device &device)
+	{
+		// track item IDs for setting up default assignments
+		input_device::assignment_vector assignments;
+		input_item_id axis_ids[AXIS_TOTAL];
+		input_item_id switch_ids[SWITCH_TOTAL];
+		std::fill(std::begin(switch_ids), std::end(switch_ids), ITEM_ID_INVALID);
+
+		// axes
+		axis_ids[AXIS_LSX] = device.add_item(
+			"LSX",
+			std::string_view(),
+			static_cast<input_item_id>(ITEM_ID_XAXIS),
+			generic_axis_get_state<std::int32_t>,
+			&joystate[joy_count].a1[0]);
+		axis_ids[AXIS_LSY] = device.add_item(
+			"LSY",
+			std::string_view(),
+			static_cast<input_item_id>(ITEM_ID_YAXIS),
+			generic_axis_get_state<std::int32_t>,
+			&joystate[joy_count].a1[1]);
+
+		axis_ids[AXIS_RSX] = device.add_item(
+			"RSX",
+			std::string_view(),
+			static_cast<input_item_id>(ITEM_ID_RXAXIS),
+			generic_axis_get_state<std::int32_t>,
+			&joystate[joy_count].a2[0]);
+		axis_ids[AXIS_RSY] = device.add_item(
+			"RSY",
+			std::string_view(),
+			static_cast<input_item_id>(ITEM_ID_RYAXIS),
+			generic_axis_get_state<std::int32_t>,
+			&joystate[joy_count].a2[1]);
+
+		axis_ids[AXIS_L2] = device.add_item(
+			"L2",
+			std::string_view(),
+			static_cast<input_item_id>(ITEM_ID_RZAXIS),
+			generic_axis_get_state<std::int32_t>,
+			&joystate[joy_count].a3[0]);
+		axis_ids[AXIS_R2] = device.add_item(
+			"R2",
+			std::string_view(),
+			static_cast<input_item_id>(ITEM_ID_ZAXIS),
+			generic_axis_get_state<std::int32_t>,
+			&joystate[joy_count].a3[1]);
+
+		for (int j = 0; j < 6; j++)
+		{
+			switch_ids[j] = device.add_item(
+				Buttons_Name[Buttons_mapping[j]],
+				std::string_view(),
+				(input_item_id)(ITEM_ID_BUTTON1 + j),
+				generic_button_get_state<std::int32_t>,
+				&joystate[joy_count].button[Buttons_mapping[j]]);
+
+			add_button_assignment(assignments, ioport_type(IPT_BUTTON1 + j), { switch_ids[j] });
+		}
+
+		switch_ids[SWITCH_START] = device.add_item(
+			Buttons_Name[RETROPAD_START],
+			std::string_view(),
+			ITEM_ID_START,
+			generic_button_get_state<std::int32_t>,
+			&joystate[joy_count].button[RETROPAD_START]);
+		add_button_assignment(assignments, IPT_START, { switch_ids[SWITCH_START] });
+
+		switch_ids[SWITCH_SELECT] = device.add_item(
+			Buttons_Name[RETROPAD_SELECT],
+			std::string_view(),
+			ITEM_ID_SELECT,
+			generic_button_get_state<std::int32_t>,
+			&joystate[joy_count].button[RETROPAD_SELECT]);
+		add_button_assignment(assignments, IPT_SELECT, { switch_ids[SWITCH_SELECT] });
+
+		switch_ids[SWITCH_L2] = device.add_item(
+			Buttons_Name[RETROPAD_L2],
+			std::string_view(),
+			ITEM_ID_BUTTON7,
+			generic_button_get_state<std::int32_t>,
+			&joystate[joy_count].button[RETROPAD_L2]);
+		add_button_assignment(assignments, ioport_type(IPT_BUTTON7), { switch_ids[SWITCH_L2] });
+
+		switch_ids[SWITCH_R2] = device.add_item(
+			Buttons_Name[RETROPAD_R2],
+			std::string_view(),
+			ITEM_ID_BUTTON8,
+			generic_button_get_state<std::int32_t>,
+			&joystate[joy_count].button[RETROPAD_R2]);
+		add_button_assignment(assignments, ioport_type(IPT_BUTTON8), { switch_ids[SWITCH_R2] });
+
+		switch_ids[SWITCH_L3] = device.add_item(
+			Buttons_Name[RETROPAD_L3],
+			std::string_view(),
+			ITEM_ID_BUTTON9,
+			generic_button_get_state<std::int32_t>,
+			&joystate[joy_count].button[RETROPAD_L3]);
+		add_button_assignment(assignments, IPT_BUTTON9, { switch_ids[SWITCH_L3] });
+
+		switch_ids[SWITCH_R3] = device.add_item(
+			Buttons_Name[RETROPAD_R3],
+			std::string_view(),
+			ITEM_ID_BUTTON10,
+			generic_button_get_state<std::int32_t>,
+			&joystate[joy_count].button[RETROPAD_R3]);
+		add_button_assignment(assignments, IPT_BUTTON10, { switch_ids[SWITCH_R3] });
+
+		// d-pad
+		switch_ids[SWITCH_DPAD_UP] = device.add_item(
+			Buttons_Name[RETROPAD_PAD_UP],
+			std::string_view(),
+			static_cast<input_item_id>(ITEM_ID_HAT1UP + joy_count*4),
+			generic_button_get_state<std::uint8_t>,
+			&joystate[joy_count].button[RETROPAD_PAD_UP]);
+
+		switch_ids[SWITCH_DPAD_DOWN] = device.add_item(
+			Buttons_Name[RETROPAD_PAD_DOWN],
+			std::string_view(),
+			static_cast<input_item_id>(ITEM_ID_HAT1DOWN + joy_count*4),
+			generic_button_get_state<std::uint8_t>,
+			&joystate[joy_count].button[RETROPAD_PAD_DOWN]);
+
+		switch_ids[SWITCH_DPAD_LEFT] = device.add_item(
+			Buttons_Name[RETROPAD_PAD_LEFT],
+			std::string_view(),
+			static_cast<input_item_id>(ITEM_ID_HAT1LEFT + joy_count*4),
+			generic_button_get_state<std::uint8_t>,
+			&joystate[joy_count].button[RETROPAD_PAD_LEFT]);
+
+		switch_ids[SWITCH_DPAD_RIGHT] = device.add_item(
+			Buttons_Name[RETROPAD_PAD_RIGHT],
+			std::string_view(),
+			static_cast<input_item_id>(ITEM_ID_HAT1RIGHT + joy_count*4),
+			generic_button_get_state<std::uint8_t>,
+			&joystate[joy_count].button[RETROPAD_PAD_RIGHT]);
+
+
+		joy_count++;
+
+		// directions, analog stick
+		add_directional_assignments(
+				assignments,
+				axis_ids[AXIS_LSX],
+				axis_ids[AXIS_LSY],
+				ITEM_ID_INVALID,
+				ITEM_ID_INVALID,
+				ITEM_ID_INVALID,
+				ITEM_ID_INVALID);
+
+		// directions, d-pad
+		add_directional_assignments(
+				assignments,
+				ITEM_ID_INVALID,
+				ITEM_ID_INVALID,
+				switch_ids[SWITCH_DPAD_LEFT],
+				switch_ids[SWITCH_DPAD_RIGHT],
+				switch_ids[SWITCH_DPAD_UP],
+				switch_ids[SWITCH_DPAD_DOWN]);
+
+		// twin stick
+		add_twin_stick_assignments(
+				assignments,
+				axis_ids[AXIS_LSX],
+				axis_ids[AXIS_LSY],
+				axis_ids[AXIS_RSX],
+				axis_ids[AXIS_RSY],
+				switch_ids[SWITCH_DPAD_LEFT],
+				switch_ids[SWITCH_DPAD_RIGHT],
+				switch_ids[SWITCH_DPAD_UP],
+				switch_ids[SWITCH_DPAD_DOWN],
+				switch_ids[SWITCH_Y],
+				switch_ids[SWITCH_A],
+				switch_ids[SWITCH_X],
+				switch_ids[SWITCH_B]);
+
+		// trigger pedals
+		assignments.emplace_back(
+				IPT_PEDAL,
+				SEQ_TYPE_STANDARD,
+				input_seq(make_code(ITEM_CLASS_ABSOLUTE, ITEM_MODIFIER_NEG, axis_ids[AXIS_R2])));
+		assignments.emplace_back(
+				IPT_PEDAL2,
+				SEQ_TYPE_STANDARD,
+				input_seq(make_code(ITEM_CLASS_ABSOLUTE, ITEM_MODIFIER_NEG, axis_ids[AXIS_L2])));
+
+		// button pedals
+		assignments.emplace_back(
+				IPT_PEDAL,
+				SEQ_TYPE_INCREMENT,
+				input_seq(make_code(ITEM_CLASS_SWITCH, ITEM_MODIFIER_NONE, switch_ids[SWITCH_B])));
+		assignments.emplace_back(
+				IPT_PEDAL2,
+				SEQ_TYPE_INCREMENT,
+				input_seq(make_code(ITEM_CLASS_SWITCH, ITEM_MODIFIER_NONE, switch_ids[SWITCH_A])));
+
+		// UI assignments
+		add_button_assignment(assignments, IPT_UI_SELECT, { switch_ids[SWITCH_B] });
+		add_button_assignment(assignments, IPT_UI_BACK, { switch_ids[SWITCH_A] });
+		add_button_assignment(assignments, IPT_UI_CLEAR, { switch_ids[SWITCH_Y] });
+		add_button_assignment(assignments, IPT_UI_HELP, { switch_ids[SWITCH_X] });
+		add_button_assignment(assignments, IPT_UI_PAGE_UP, { switch_ids[SWITCH_L1] });
+		add_button_assignment(assignments, IPT_UI_PAGE_DOWN, { switch_ids[SWITCH_R1] });
+
+		// set default assignments
+		device.set_default_assignments(std::move(assignments));
+	}
+
 protected:
-	void process_event(KeyPressEventArgs &args) /*override*/
+	virtual void process_event(KeyPressEventArgs const &args)
 	{
 	}
 };
@@ -1050,103 +1321,32 @@ protected:
 //  joystick_input_retro - retro joystick input module
 //============================================================
 
-class joystick_input_retro : public retroinput_module
+class joystick_input_retro : public retro_input_module<retro_joystick_device>
 {
 private:
 
 public:
 	joystick_input_retro()
-		: retroinput_module(OSD_JOYSTICKINPUT_PROVIDER, "retro")
+		: retro_input_module(OSD_JOYSTICKINPUT_PROVIDER, "retro")
 	{
 	}
 
 	virtual void input_init(running_machine &machine) override
 	{
+		retro_input_module<retro_joystick_device>::input_init(machine);
 
-		int i,j;
  		char defname[32];
 
 		if (buttons_profiles)
 			Input_Binding(machine);
 
-		for (i = 0; i < 8; i++)
+		for (int i = 0; i < 8; i++)
 		{
  			sprintf(defname, "RetroPad%d", i);
-
-			if (!input_enabled()/* || !joystick_enabled()*/)
-				return;
-
-			auto &devinfo = devicelist().create_device<retro_joystick_device>(machine, defname, defname, *this);
-
-			// add the axes
-			devinfo.device()->add_item(
-				"LSX",
-				static_cast<input_item_id>(ITEM_ID_XAXIS),
-				generic_axis_get_state<std::int32_t>,
-				&joystate[i].a1[0]);
-			devinfo.device()->add_item(
-				"LSY",
-				static_cast<input_item_id>(ITEM_ID_YAXIS),
-				generic_axis_get_state<std::int32_t>,
-				&joystate[i].a1[1]);
-
-			devinfo.device()->add_item(
-				"RSX",
-				static_cast<input_item_id>(ITEM_ID_RXAXIS),
-				generic_axis_get_state<std::int32_t>,
-				&joystate[i].a2[0]);
-			devinfo.device()->add_item(
-				"RSY",
-				static_cast<input_item_id>(ITEM_ID_RYAXIS),
-				generic_axis_get_state<std::int32_t>,
-				&joystate[i].a2[1]);
-
-			devinfo.device()->add_item(
-				"L2",
-				static_cast<input_item_id>(ITEM_ID_RZAXIS),
-				generic_axis_get_state<std::int32_t>,
-				&joystate[i].a3[0]);
-
-			devinfo.device()->add_item(
-				"R2",
-				static_cast<input_item_id>(ITEM_ID_ZAXIS),
-				generic_axis_get_state<std::int32_t>,
-				&joystate[i].a3[1]);
-
-			devinfo.device()->add_item(Buttons_Name[RETROPAD_START], ITEM_ID_START,
-				generic_button_get_state<std::int32_t>, &joystate[i].button[RETROPAD_START]);
-
-			devinfo.device()->add_item(Buttons_Name[RETROPAD_SELECT], ITEM_ID_SELECT,
-				generic_button_get_state<std::int32_t>, &joystate[i].button[RETROPAD_SELECT]);
-
-			for(j = 0; j < 6; j++)
-				devinfo.device()->add_item(Buttons_Name[Buttons_mapping[j]],
-					 (input_item_id)(ITEM_ID_BUTTON1+j),
-					 generic_button_get_state<std::int32_t>,
-					  &joystate[i].button[Buttons_mapping[j]]);
-
-			devinfo.device()->add_item(Buttons_Name[RETROPAD_L3], ITEM_ID_BUTTON9,
-				generic_button_get_state<std::int32_t>, &joystate[i].button[RETROPAD_L3]);
-
-			devinfo.device()->add_item(Buttons_Name[RETROPAD_R3], ITEM_ID_BUTTON10,
-				generic_button_get_state<std::int32_t>, &joystate[i].button[RETROPAD_R3]);
-
-			// D-Pad
-			devinfo.device()->add_item(Buttons_Name[RETROPAD_PAD_UP], static_cast<input_item_id>(ITEM_ID_HAT1UP+i*4),
-				generic_button_get_state<std::uint8_t>, &joystate[i].button[RETROPAD_PAD_UP]);
-
-			devinfo.device()->add_item(Buttons_Name[RETROPAD_PAD_DOWN], static_cast<input_item_id>(ITEM_ID_HAT1DOWN+i*4),
-				generic_button_get_state<std::uint8_t>, &joystate[i].button[RETROPAD_PAD_DOWN]);
-
-			devinfo.device()->add_item(Buttons_Name[RETROPAD_PAD_LEFT], static_cast<input_item_id>(ITEM_ID_HAT1LEFT+i*4),
-				generic_button_get_state<std::uint8_t>, &joystate[i].button[RETROPAD_PAD_LEFT]);
-
-			devinfo.device()->add_item(Buttons_Name[RETROPAD_PAD_RIGHT], static_cast<input_item_id>(ITEM_ID_HAT1RIGHT+i*4),
-				generic_button_get_state<std::uint8_t>, &joystate[i].button[RETROPAD_PAD_RIGHT]);
+			create_device<retro_joystick_device>(DEVICE_CLASS_JOYSTICK, defname, defname);
 		}
 
 		m_global_inputs_enabled = true;
-
 	}
 
 	bool handle_input_event(void) override
@@ -1154,7 +1354,6 @@ public:
 		if (!input_enabled() /*|| !joystick_enabled()*/)
 			return false;
 		return true;
-
 	}
 };
 
@@ -1166,33 +1365,61 @@ public:
 class retro_lightgun_device : public event_based_device<KeyPressEventArgs>
 {
 public:
-
-	retro_lightgun_device(running_machine &machine, std::string &&name, std::string &&id, input_module &module)
-		: event_based_device(machine, std::move(name), std::move(id), DEVICE_CLASS_LIGHTGUN, module)
+	retro_lightgun_device(std::string &&name, std::string &&id, input_module &module)
+		: event_based_device(std::move(name), std::move(id), module)
 	{
 	}
 
-	void poll() override
+	void poll(bool relative_reset) override
 	{
-      event_based_device::poll();
+		event_based_device::poll(relative_reset);
 	}
 
-	void reset() override
+	virtual void reset() override
 	{
-	int j;
-	for(j = 0; j < 8; j++)
-	   {
-		   lightgunX[j]=fb_width/2;
-		   lightgunY[j]=fb_height/2;
-  		   int i;
- 		   for(i = 0; i < 4; i++)lightgunstate[j].lightgunBUT[i]=0;
-	   }
+		for (int j = 0; j < 8; j++)
+		{
+			lightgunX[j] = fb_width / 2;
+			lightgunY[j] = fb_height / 2;
+
+			for (int i = 0; i < 4; i++)
+				lightgunstate[j].lightgunBUT[i] = 0;
+		}
+	}
+
+	virtual void configure(osd::input_device &device)
+	{
+		device.add_item(
+			"X",
+			std::string_view(),
+			static_cast<input_item_id>(ITEM_ID_XAXIS),
+			generic_axis_get_state<std::int32_t>,
+			&lightgunX[lightgun_count]);
+		device.add_item(
+			"Y",
+			std::string_view(),
+			static_cast<input_item_id>(ITEM_ID_YAXIS),
+			generic_axis_get_state<std::int32_t>,
+			&lightgunY[lightgun_count]);
+
+		for (int button = 0; button < 4; button++)
+		{
+			lightgunstate[lightgun_count].lightgunBUT[button] = 0;
+
+			device.add_item(
+				default_button_name(button),
+				std::string_view(),
+				static_cast<input_item_id>(ITEM_ID_BUTTON1 + button),
+				generic_button_get_state<std::int32_t>,
+				&lightgunstate[lightgun_count].lightgunBUT[button]);
+		}
+
+		lightgun_count++;
 	}
 
 protected:
-	void process_event(KeyPressEventArgs &args) override
+	virtual void process_event(KeyPressEventArgs const &args)
 	{
-//		printf("here\n");
 	}
 };
 
@@ -1200,67 +1427,46 @@ protected:
 //  lightgun_input_retro - retro lightgun input module
 //============================================================
 
-class lightgun_input_retro : public retroinput_module
+class lightgun_input_retro : public retro_input_module<retro_lightgun_device>
 {
 private:
 
 public:
 	lightgun_input_retro()
-		: retroinput_module(OSD_LIGHTGUNINPUT_PROVIDER, "retro")
+		: retro_input_module(OSD_LIGHTGUNINPUT_PROVIDER, "retro")
 	{
 	}
 
 	virtual void input_init(running_machine &machine) override
 	{
-		if (!input_enabled() || !lightgun_enabled())
+		retro_input_module<retro_lightgun_device>::input_init(machine);
+
+		if (!input_enabled() || !options()->lightgun())
 			return;
-			
-        int i;
- 		char defname[32];
-		
-		for(i = 0; i < 8; i++)
+
+		char defname[32];
+
+		for (int i = 0; i < 8; i++)
 		{
-		   sprintf(defname, "RetroLightgun%d", i);
+			sprintf(defname, "RetroLightgun%d", i);
+			create_device<retro_lightgun_device>(DEVICE_CLASS_LIGHTGUN, defname, defname);
 
-		   auto &devinfo = devicelist().create_device<retro_lightgun_device>(machine, defname, defname, *this);
-
-		   lightgunX[i]=fb_width/2;
-		   lightgunY[i]=fb_height/2;
-		   devinfo.device()->add_item(
-				   "X",
-				   static_cast<input_item_id>(ITEM_ID_XAXIS),
-				   generic_axis_get_state<std::int32_t>,
-				   &lightgunX[i]);
-		   devinfo.device()->add_item(
-				   "Y",
-				   static_cast<input_item_id>(ITEM_ID_YAXIS),
-				   generic_axis_get_state<std::int32_t>,
-				   &lightgunY[i]);
-
-		   int button;
-		   for (button = 0; button < 4; button++)
-		   {
-			   lightgunstate[i].lightgunBUT[button]=0;
-			   devinfo.device()->add_item(
-				   default_button_name(button),
-				   static_cast<input_item_id>(ITEM_ID_BUTTON1 + button),
-				   generic_button_get_state<std::int32_t>,
-				   &lightgunstate[i].lightgunBUT[button]);
-		   }
+			lightgunX[i] = fb_width / 2;
+			lightgunY[i] = fb_height / 2;
 		}
 
 		m_global_inputs_enabled = true;
-
 	}
 
 	bool handle_input_event(void) override
 	{
-		if (!input_enabled() || !lightgun_enabled())
+		if (!input_enabled() || !options()->lightgun())
 			return false;
 		return true;
-
 	}
 };
+
+} // namespace osd
 
 void retro_osd_interface::process_events_buf()
 {
@@ -1275,7 +1481,7 @@ void retro_osd_interface::poll_inputs(running_machine &machine)
 	process_lightgun_state(machine);
 }
 
-MODULE_DEFINITION(KEYBOARDINPUT_RETRO, keyboard_input_retro)
-MODULE_DEFINITION(MOUSEINPUT_RETRO, mouse_input_retro)
-MODULE_DEFINITION(JOYSTICKINPUT_RETRO, joystick_input_retro)
-MODULE_DEFINITION(LIGHTGUNINPUT_RETRO, lightgun_input_retro)
+MODULE_DEFINITION(KEYBOARDINPUT_RETRO, osd::keyboard_input_retro)
+MODULE_DEFINITION(MOUSEINPUT_RETRO, osd::mouse_input_retro)
+MODULE_DEFINITION(JOYSTICKINPUT_RETRO, osd::joystick_input_retro)
+MODULE_DEFINITION(LIGHTGUNINPUT_RETRO, osd::lightgun_input_retro)
