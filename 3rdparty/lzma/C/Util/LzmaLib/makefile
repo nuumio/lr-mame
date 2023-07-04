@@ -11,10 +11,8 @@ LIB_OBJS = \
 
 C_OBJS = \
   $O\Alloc.obj \
-  $O\CpuArch.obj \
   $O\LzFind.obj \
   $O\LzFindMt.obj \
-  $O\LzFindOpt.obj \
   $O\LzmaDec.obj \
   $O\LzmaEnc.obj \
   $O\LzmaLib.obj \

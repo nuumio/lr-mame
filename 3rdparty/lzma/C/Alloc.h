@@ -1,5 +1,5 @@
 /* Alloc.h -- Memory allocation functions
-2021-07-13 : Igor Pavlov : Public domain */
+2015-02-21 : Igor Pavlov : Public domain */
 
 #ifndef __COMMON_ALLOC_H
 #define __COMMON_ALLOC_H
@@ -13,7 +13,7 @@ void MyFree(void *address);
 
 #ifdef _WIN32
 
-void SetLargePageSize(void);
+void SetLargePageSize();
 
 void *MidAlloc(size_t size);
 void MidFree(void *address);
@@ -29,29 +29,8 @@ void BigFree(void *address);
 
 #endif
 
-extern const ISzAlloc g_Alloc;
-
-#ifdef _WIN32
-extern const ISzAlloc g_BigAlloc;
-extern const ISzAlloc g_MidAlloc;
-#else
-#define g_BigAlloc g_AlignedAlloc
-#define g_MidAlloc g_AlignedAlloc
-#endif
-
-extern const ISzAlloc g_AlignedAlloc;
-
-
-typedef struct
-{
-  ISzAlloc vt;
-  ISzAllocPtr baseAlloc;
-  unsigned numAlignBits; /* ((1 << numAlignBits) >= sizeof(void *)) */
-  size_t offset;         /* (offset == (k * sizeof(void *)) && offset < (1 << numAlignBits) */
-} CAlignOffsetAlloc;
-
-void AlignOffsetAlloc_CreateVTable(CAlignOffsetAlloc *p);
-
+extern ISzAlloc g_Alloc;
+extern ISzAlloc g_BigAlloc;
 
 EXTERN_C_END
 

@@ -1,5 +1,5 @@
 /* SfxSetup.c - 7z SFX Setup
-2019-02-02 : Igor Pavlov : Public domain */
+2016-05-16 : Igor Pavlov : Public domain */
 
 #include "Precomp.h"
 
@@ -23,8 +23,6 @@
 #include "../../DllSecur.h"
 
 #define k_EXE_ExtIndex 2
-
-#define kInputBufSize ((size_t)1 << 18)
 
 static const char * const kExts[] =
 {
@@ -127,7 +125,7 @@ static WRes MyCreateDir(const WCHAR *name)
 
 #define kSignatureSearchLimit (1 << 22)
 
-static BoolInt FindSignature(CSzFile *stream, UInt64 *resPos)
+static Bool FindSignature(CSzFile *stream, UInt64 *resPos)
 {
   Byte buf[kBufferSize];
   size_t numPrevBytes = 0;
@@ -163,7 +161,7 @@ static BoolInt FindSignature(CSzFile *stream, UInt64 *resPos)
   }
 }
 
-static BoolInt DoesFileOrDirExist(const WCHAR *path)
+static Bool DoesFileOrDirExist(const WCHAR *path)
 {
   WIN32_FIND_DATAW fd;
   HANDLE handle;
@@ -240,7 +238,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 #endif
 {
   CFileInStream archiveStream;
-  CLookToRead2 lookStream;
+  CLookToRead lookStream;
   CSzArEx db;
   SRes res = SZ_OK;
   ISzAlloc allocImp;
@@ -254,7 +252,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   DWORD winRes;
   const wchar_t *cmdLineParams;
   const char *errorMessage = NULL;
-  BoolInt useShellExecute = True;
+  Bool useShellExecute = True;
   DWORD exitCode = 0;
 
   LoadSecurityDlls();
@@ -277,8 +275,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   allocTempImp.Free = SzFreeTemp;
 
   FileInStream_CreateVTable(&archiveStream);
-  LookToRead2_CreateVTable(&lookStream, False);
-  lookStream.buf = NULL;
+  LookToRead_CreateVTable(&lookStream, False);
  
   winRes = GetModuleFileNameW(NULL, sfxPath, MAX_PATH);
   if (winRes == 0 || winRes > MAX_PATH)
@@ -287,7 +284,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     cmdLineParams = GetCommandLineW();
     #ifndef UNDER_CE
     {
-      BoolInt quoteMode = False;
+      Bool quoteMode = False;
       for (;; cmdLineParams++)
       {
         wchar_t c = *cmdLineParams;
@@ -379,22 +376,14 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
   if (res == SZ_OK)
   {
-    lookStream.buf = (Byte *)ISzAlloc_Alloc(&allocImp, kInputBufSize);
-    if (!lookStream.buf)
-      res = SZ_ERROR_MEM;
-    else
-    {
-      lookStream.bufSize = kInputBufSize;
-      lookStream.realStream = &archiveStream.vt;
-      LookToRead2_Init(&lookStream);
-    }
+    lookStream.realStream = &archiveStream.s;
+    LookToRead_Init(&lookStream);
   }
 
   SzArEx_Init(&db);
-  
   if (res == SZ_OK)
   {
-    res = SzArEx_Open(&db, &lookStream.vt, &allocImp, &allocTempImp);
+    res = SzArEx_Open(&db, &lookStream.s, &allocImp, &allocTempImp);
   }
   
   if (res == SZ_OK)
@@ -420,9 +409,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
       
       temp = path + pathLen;
       
-      SzArEx_GetFileNameUtf16(&db, i, (UInt16 *)temp);
+      SzArEx_GetFileNameUtf16(&db, i, temp);
       {
-        res = SzArEx_Extract(&db, &lookStream.vt, i,
+        res = SzArEx_Extract(&db, &lookStream.s, i,
           &blockIndex, &outBuffer, &outBufferSize,
           &offset, &outSizeProcessed,
           &allocImp, &allocTempImp);
@@ -527,18 +516,15 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
       {
         WCHAR *temp = path + pathLen;
         UInt32 j;
-        SzArEx_GetFileNameUtf16(&db, executeFileIndex, (UInt16 *)temp);
+        SzArEx_GetFileNameUtf16(&db, executeFileIndex, temp);
         for (j = 0; temp[j] != 0; j++)
           if (temp[j] == '/')
             temp[j] = CHAR_PATH_SEPARATOR;
       }
     }
-    ISzAlloc_Free(&allocImp, outBuffer);
+    IAlloc_Free(&allocImp, outBuffer);
   }
-
   SzArEx_Free(&db, &allocImp);
-
-  ISzAlloc_Free(&allocImp, lookStream.buf);
 
   File_Close(&archiveStream.file);
 
