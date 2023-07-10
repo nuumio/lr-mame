@@ -26,8 +26,6 @@
 
 class render_target;
 
-// forward of SDL_DisplayMode not possible (typedef struct) - define wrapper
-
 class RETRO_DM_Wrapper;
 
 typedef uintptr_t HashT;
@@ -37,7 +35,11 @@ typedef uintptr_t HashT;
 class retro_window_info : public osd_window_t<void *>
 {
 public:
-	retro_window_info(running_machine &a_machine, int index, std::shared_ptr<osd_monitor_info> a_monitor,
+	retro_window_info(
+			running_machine &a_machine,
+			render_module &renderprovider,
+			int index,
+			std::shared_ptr<osd_monitor_info> a_monitor,
 			const osd_window_config *config);
 
 	~retro_window_info();
@@ -116,10 +118,6 @@ struct osd_draw_callbacks
 //  PROTOTYPES
 //============================================================
 
-//============================================================
-// PROTOTYPES - drawsdl.c
-//============================================================
-
 int drawretro_scale_mode(const char *s);
 
 //============================================================
@@ -128,4 +126,4 @@ int drawretro_scale_mode(const char *s);
 
 int drawretro_init(running_machine &machine, osd_draw_callbacks *callbacks);
 
-#endif /* __SDLWINDOW__ */
+#endif /* __RETROWINDOW__ */

@@ -94,27 +94,12 @@ public:
 
 bool retro_osd_interface::window_init()
 {
-	//osd_printf_verbose("Enter sdlwindow_init\n");
-
-	// initialize the drawers
-	switch (video_config.mode)
-	{
-		case VIDEO_MODE_SOFT:
-			renderer_retro::init(machine());
-			break;
-		default:
-			break;
-	}
-
-	// set up the window list
-	//osd_printf_verbose("Leave sdlwindow_init\n");
 	return true;
 }
 
-
 void retro_osd_interface::update_slider_list()
 {
-	for (auto window : osd_common_t::s_window_list)
+	for (const auto &window : osd_common_t::window_list())
 	{
 		// check if any window has dirty sliders
 		if (window->renderer().sliders_dirty())
@@ -129,7 +114,7 @@ void retro_osd_interface::build_slider_list()
 {
 	m_sliders.clear();
 
-	for (auto window : osd_common_t::s_window_list)
+	for (const auto &window : osd_common_t::window_list())
 	{
 		std::vector<ui::menu_item> window_sliders = window->renderer().get_slider_list();
 		m_sliders.insert(m_sliders.end(), window_sliders.begin(), window_sliders.end());
@@ -143,27 +128,13 @@ void retro_osd_interface::build_slider_list()
 
 void retro_osd_interface::window_exit()
 {
-	//osd_printf_verbose("Enter window_exit\n");
-
 	// free all the windows
 	while (!osd_common_t::s_window_list.empty())
 	{
-		auto window = osd_common_t::s_window_list.front();
-
-		// Part of destroy removes the window from the list
+		auto window = std::move(osd_common_t::s_window_list.back());
+		s_window_list.pop_back();
 		window->destroy();
 	}
-
-	switch (video_config.mode)
-	{
-		case VIDEO_MODE_SOFT:
-			renderer_retro::exit();
-			break;
-		default:
-			break;
-	}
-
-	//osd_printf_verbose("Leave window_exit\n");
 }
 
 
@@ -239,48 +210,6 @@ void retro_window_info::notify_changed()
 
 void retro_window_info::toggle_full_screen()
 {
-#if 0
-
-	// if we are in debug mode, never go full screen
-	if (machine().debug_flags & DEBUG_FLAG_OSD_ENABLED)
-		return;
-
-	// If we are going fullscreen (leaving windowed) remember our windowed size
-	if (!fullscreen())
-	{
-		m_windowed_dim = get_size();
-	}
-
-	// reset UI to main menu
-	machine().ui().menu_reset();
-	// kill off the drawers
-	renderer_reset();
-	set_platform_window(nullptr);
-	bool is_osx = false;
-#ifdef SDLMAME_MACOSX
-	// FIXME: This is weird behaviour and certainly a bug in SDL
-	is_osx = true;
-#endif
-	if (fullscreen() && (video_config.switchres || is_osx))
-	{
-		SDL_SetWindowFullscreen(platform_window<SDL_Window*>(), 0);    // Try to set mode
-		SDL_SetWindowDisplayMode(platform_window<SDL_Window*>(), &m_original_mode->mode);    // Try to set mode
-		SDL_SetWindowFullscreen(platform_window<SDL_Window*>(), SDL_WINDOW_FULLSCREEN);    // Try to set mode
-	}
-	SDL_DestroyWindow(platform_window<SDL_Window*>());
-
-	downcast<sdl_osd_interface &>(machine().osd()).release_keys();
-
-	set_renderer(osd_renderer::make_for_type(video_config.mode, shared_from_this()));
-
-	// toggle the window mode
-	set_fullscreen(!fullscreen());
-
-	complete_create();
-
-#else
-	return;
-#endif
 }
 
 void retro_window_info::modify_prescale(int dir)
@@ -318,41 +247,6 @@ void retro_window_info::modify_prescale(int dir)
 
 void retro_window_info::update_cursor_state()
 {
-#if 0
-
-#if (USE_XINPUT)
-	// Hack for wii-lightguns:
-	// they stop working with a grabbed mouse;
-	// even a ShowCursor(SDL_DISABLE) already does this.
-	// To make the cursor disappear, we'll just set an empty cursor image.
-	unsigned char data[]={0,0,0,0,0,0,0,0};
-	SDL_Cursor *c;
-	c=SDL_CreateCursor(data, data, 8, 8, 0, 0);
-	SDL_SetCursor(c);
-#else
-	// do not do mouse capture if the debugger's enabled to avoid
-	// the possibility of losing control
-	if (!(machine().debug_flags & DEBUG_FLAG_OSD_ENABLED))
-	{
-		bool should_hide_mouse = downcast<sdl_osd_interface&>(machine().osd()).should_hide_mouse();
-
-		if (!fullscreen() && !should_hide_mouse)
-		{
-			show_pointer();
-			release_pointer();
-		}
-		else
-		{
-			hide_pointer();
-			capture_pointer();
-		}
-
-		SDL_SetCursor(nullptr); // Force an update in case the underlying driver has changed visibility
-	}
-#endif
-#else
-	return;
-#endif
 }
 
 int retro_window_info::xy_to_render_target(int x, int y, int *xt, int *yt)
@@ -367,7 +261,7 @@ int retro_window_info::xy_to_render_target(int x, int y, int *xt, int *yt)
 
 int retro_window_info::window_init()
 {
-	int result;
+	int result = 1;
 
 	// set the initial maximized state
 	// FIXME: Does not belong here
@@ -376,16 +270,8 @@ int retro_window_info::window_init()
 
 	create_target();
 
-	set_renderer(osd_renderer::make_for_type(video_config.mode, static_cast<osd_window*>(this)->shared_from_this()));
-
-	// make the window title
-	if (video_config.numscreens == 1)
-		sprintf(m_title, "%s: %s [%s]", emulator_info::get_appname(), machine().system().type.fullname(), machine().system().name);
-	else
-		sprintf(m_title, "%s: %s [%s] - Screen %d", emulator_info::get_appname(), machine().system().type.fullname(), machine().system().name, index());
-
 	result = complete_create();
-	
+
 	if (!alternate_renderer)
 	{
 		// test correct aspect
@@ -425,6 +311,8 @@ error:
 
 void retro_window_info::complete_destroy()
 {
+	renderer_reset();
+
 	// Release pointer grab and hide if needed
 	show_pointer();
 	release_pointer();
@@ -691,24 +579,7 @@ int retro_window_info::complete_create()
 	osd_rect work = monitor()->usuable_position_size();
 	//set_platform_window(retrowindow);
 #endif
-
-	// set main window
-	if (index() > 0)
-	{
-		for (auto w : osd_common_t::s_window_list)
-		{
-			if (w->index() == 0)
-			{
-				set_main_window(std::dynamic_pointer_cast<osd_window>(w));
-				break;
-			}
-		}
-	}
-	else
-	{
-		// We must be the main window
-		set_main_window(shared_from_this());
-	}
+	renderer_create();
 
 	// update monitor resolution after mode change to ensure proper pixel aspect
 	monitor()->refresh();
@@ -718,11 +589,6 @@ int retro_window_info::complete_create()
 	// initialize the drawing backend
 	if (renderer().create())
 		return 1;
-
-	// Make sure we have a consistent state
-
-	//SDL_ShowCursor(0);
-	//SDL_ShowCursor(1);
 
 	return 0;
 }
@@ -1016,10 +882,11 @@ osd_dim retro_window_info::get_max_bounds(int constrain)
 
 retro_window_info::retro_window_info(
 		running_machine &a_machine,
+		render_module &renderprovider,
 		int index,
 		std::shared_ptr<osd_monitor_info> a_monitor,
 		const osd_window_config *config)
-	: osd_window_t(a_machine, index, std::move(a_monitor), *config)
+	: osd_window_t(a_machine, renderprovider, index, std::move(a_monitor), *config)
 	, m_startmaximized(0)
 	// Following three are used by input code to defer resizes
 	, m_minimum_dim(0, 0)

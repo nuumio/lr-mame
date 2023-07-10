@@ -39,7 +39,7 @@ public:
 	}
 	virtual ~sound_retro() { }
 
-	virtual int init(const osd_options &options)
+	virtual int init(osd_interface &osd, const osd_options &options)
 	{
 		set_mastervolume(attenuation);
 		return 0;

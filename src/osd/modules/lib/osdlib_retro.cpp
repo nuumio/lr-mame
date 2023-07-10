@@ -137,7 +137,7 @@ std::error_condition osd_set_clipboard_text(std::string_view text) noexcept
 //  osd_getpid
 //============================================================
 
-int osd_getpid(void)
+int osd_getpid(void) noexcept
 {
 #if defined(_WIN32)
 	return GetCurrentProcessId();
@@ -268,7 +268,7 @@ private:
 #endif
 } // anonymous namespace
 
-bool invalidate_instruction_cache(void const *start, std::size_t size)
+bool invalidate_instruction_cache(void const *start, std::size_t size) noexcept
 {
 #if defined(_WIN32)
 	return FlushInstructionCache(GetCurrentProcess(), start, size) != 0;
@@ -282,7 +282,7 @@ bool invalidate_instruction_cache(void const *start, std::size_t size)
 #endif
 }
 
-void *virtual_memory_allocation::do_alloc(std::initializer_list<std::size_t> blocks, unsigned intent, std::size_t &size, std::size_t &page_size)
+void *virtual_memory_allocation::do_alloc(std::initializer_list<std::size_t> blocks, unsigned intent, std::size_t &size, std::size_t &page_size) noexcept
 {
 #if defined(_WIN32)
 	SYSTEM_INFO info;
@@ -325,7 +325,7 @@ void *virtual_memory_allocation::do_alloc(std::initializer_list<std::size_t> blo
 #endif
 }
 
-void virtual_memory_allocation::do_free(void *start, std::size_t size)
+void virtual_memory_allocation::do_free(void *start, std::size_t size) noexcept
 {
 #if defined(_WIN32)
 	VirtualFree(start, 0, MEM_RELEASE);
@@ -334,7 +334,7 @@ void virtual_memory_allocation::do_free(void *start, std::size_t size)
 #endif
 }
 
-bool virtual_memory_allocation::do_set_access(void *start, std::size_t size, unsigned access)
+bool virtual_memory_allocation::do_set_access(void *start, std::size_t size, unsigned access) noexcept
 {
 #if defined(_WIN32)
 	DWORD p, o;

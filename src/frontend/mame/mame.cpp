@@ -74,6 +74,7 @@ mame_machine_manager::mame_machine_manager(emu_options &options,osd_interface &o
 
 mame_machine_manager::~mame_machine_manager()
 {
+	m_autoboot_script.reset();
 	m_lua.reset();
 	s_manager = nullptr;
 }
@@ -230,7 +231,7 @@ void mame_machine_manager::start_luaengine()
 extern mame_machine_manager *retro_manager;
 static running_machine *retro_global_machine;
 static const machine_config *retro_global_config;
-int ENDEXEC=0;
+int ENDEXEC = 0;
 static bool firstgame = true;
 bool started_empty = false;
 #endif
@@ -286,7 +287,6 @@ int mame_machine_manager::execute()
 		}
 
 #if defined(__LIBRETRO__)
-
 		retro_global_config = new machine_config(*system, m_options);
 
 		retro_global_machine = new running_machine(*retro_global_config, *this);
@@ -337,7 +337,7 @@ int mame_machine_manager::execute()
 }
 
 #if defined(__LIBRETRO__)
-extern int RLOOP,retro_pause;
+extern int RLOOP, retro_pause;
 extern void retro_loop(running_machine *machine);
 extern void retro_execute();
 extern core_options *retro_global_options;
@@ -376,7 +376,7 @@ extern void free_man();
 
 void retro_finish()
 {
-	retro_global_machine->retro_machineexit();
+	retro_global_machine->retro_machine_exit();
 	free_machineconfig();
 	free_man();
 }
@@ -437,7 +437,7 @@ TIMER_CALLBACK_MEMBER(mame_machine_manager::autoboot_callback)
 		strreplace(cmd, "'", "\\'");
 		std::string val = std::string("emu.keypost('").append(cmd).append("')");
 		auto &l(*lua());
-		l.invoke(l.load_string(val));
+		l.invoke(l.load_string(val).get<sol::protected_function>());
 	}
 }
 
@@ -453,8 +453,6 @@ ui_manager* mame_machine_manager::create_ui(running_machine& machine)
 	m_ui->init();
 
 	machine.add_notifier(MACHINE_NOTIFY_RESET, machine_notify_delegate(&mame_machine_manager::reset, this));
-
-	m_ui->set_startup_text("Initializing...", true);
 
 	return m_ui.get();
 }
@@ -561,9 +559,9 @@ int emulator_info::start_frontend(emu_options &options, osd_interface &osd, int 
 	return start_frontend(options, osd, args);
 }
 
-void emulator_info::draw_user_interface(running_machine& machine)
+bool emulator_info::draw_user_interface(running_machine& machine)
 {
-	mame_machine_manager::instance()->ui().update_and_render(machine.render().ui_container());
+	return mame_machine_manager::instance()->ui().update_and_render(machine.render().ui_container());
 }
 
 void emulator_info::periodic_check()
