@@ -198,7 +198,7 @@ int mmain(int argc, char *argv[])
 
 #if defined(SDLMAME_ANDROID) && !defined(__LIBRETRO__)
 	/* Enable standard application logging */
-	SDL_LogSetPri ority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_VERBOSE);
+	SDL_LogSetPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_VERBOSE);
 #endif
 
 	// FIXME: this should be done differently
