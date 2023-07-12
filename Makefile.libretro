@@ -1,5 +1,5 @@
 
-VERBOSE ?= 1
+#VERBOSE ?= 1
 RETRO ?= 1
 NOWERROR ?= 1
 CONFIG ?= libretro
