@@ -42,7 +42,7 @@ ifeq ($(platform),)
 endif
 ifeq ($(ARCH),)
 	LIBRETRO_CPU = $(ARCH)
-endifRETRO
+endif
 ifeq ($(LIBRETRO_CPU),)
 	ifeq ($(UNAME_M),)
 		ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
