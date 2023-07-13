@@ -132,6 +132,15 @@ ifeq ($(platform),android-arm64)
 	LIBRETRO_OS :=
 	PTR64 :=
 endif
+ifeq ($(platform),android-x86)
+	ANDROID_NDK_HOME ?= /opt/ndk
+	PLATFLAGS += "OVERRIDE_CC=clang"
+	PLATFLAGS += android-x86 
+	LIBRETRO_CPU :=
+	ARCH :=
+	LIBRETRO_OS :=
+	PTR64 :=
+endif
 ifeq ($(platform),android-x86_64)
 	ANDROID_NDK_HOME ?= /opt/ndk
 	PLATFLAGS += "OVERRIDE_CC=clang"
