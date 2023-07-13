@@ -111,7 +111,9 @@ ifneq ($(findstring win,$(platform)),)
 		PLATFLAGS += WINDRES="$(WINDRES)"
 	endif
 endif
-
+# android only needs a valid ANDROID_NDK_HOME set no paths are needed toolchain and makefile takes care of that
+# make CONFIG=libretero OSD=retro android-xxx is all thes required
+ 
 ifeq ($(platform),android-arm)
 	ANDROID_NDK_HOME ?= /opt/ndk
 	PLATFLAGS += "OVERRIDE_CC=clang"
