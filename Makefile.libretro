@@ -116,7 +116,7 @@ endif
  
 ifeq ($(platform),android-arm)
 	ANDROID_NDK_HOME ?= /opt/ndk
-	PLATFLAGS += "OVERRIDE_CC=clang ANDROID_NDK_HOME=$(ANDROID_NDK_HOME)"
+	PLATFLAGS += OVERRIDE_CC=clang ANDROID_NDK_HOME="$(ANDROID_NDK_HOME)"
 	PLATFLAGS += android-arm 
 	LIBRETRO_CPU :=
 	ARCH :=
@@ -125,7 +125,7 @@ ifeq ($(platform),android-arm)
 endif
 ifeq ($(platform),android-arm64)
 	ANDROID_NDK_HOME ?= /opt/ndk
-	PLATFLAGS += "OVERRIDE_CC=clang ANDROID_NDK_HOME=$(ANDROID_NDK_HOME))"
+	PLATFLAGS += OVERRIDE_CC=clang ANDROID_NDK_HOME="$(ANDROID_NDK_HOME)"
 	PLATFLAGS += android-arm64 
 	LIBRETRO_CPU :=
 	ARCH :=
@@ -134,7 +134,7 @@ ifeq ($(platform),android-arm64)
 endif
 ifeq ($(platform),android-x86)
 	ANDROID_NDK_HOME ?= /opt/ndk
-	PLATFLAGS += "OVERRIDE_CC=clang ANDROID_NDK_HOME=$(ANDROID_NDK_HOME)"
+	PLATFLAGS += OVERRIDE_CC=clang ANDROID_NDK_HOME="$(ANDROID_NDK_HOME)"
 	PLATFLAGS += android-x86
 	LIBRETRO_CPU :=
 	ARCH :=
@@ -143,7 +143,7 @@ ifeq ($(platform),android-x86)
 endif
 ifeq ($(platform),android-x86_64)
 	ANDROID_NDK_HOME ?= /opt/ndk
-	PLATFLAGS += "OVERRIDE_CC=clang ANDROID_NDK_HOME=$(ANDROID_NDK_HOME)"
+	PLATFLAGS += OVERRIDE_CC=clang ANDROID_NDK_HOME="$(ANDROID_NDK_HOME)"
 	PLATFLAGS += android-x64 
 	LIBRETRO_CPU :=
 	ARCH :=
