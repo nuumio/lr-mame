@@ -71,7 +71,7 @@ static bool arcade = false;
 static int FirstTimeUpdate = 1;
 int rotation_mode = 0;
 int rotation_allow = 0;
-
+int thread_mode = 0;
 // rom file name and path
 char g_rom_dir[1024];
 char mediaType[10];
@@ -312,14 +312,6 @@ void Extract_AllPath(char *srcpath)
 
 static void Add_Option(const char* option)
 {
-   static int first = 0;
-
-   if (first == 0)
-   {
-      PARAMCOUNT=0;
-      first++;
-   }
-
    sprintf(XARGV[PARAMCOUNT++], "%s", option);
 }
 
@@ -327,6 +319,7 @@ static void Set_Default_Option(void)
 {
    /* some hardcoded default options. */
 
+   PARAMCOUNT=0;
    Add_Option(core);
 
    Add_Option("-joystick");
