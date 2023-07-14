@@ -135,7 +135,7 @@ endif
 ifeq ($(platform),android-x86)
 	ANDROID_NDK_HOME ?= /opt/ndk
 	PLATFLAGS += "OVERRIDE_CC=clang ANDROID_NDK_HOME=$(ANDROID_NDK_HOME)"
-	PLATFLAGS += android-x86 
+	PLATFLAGS += android-x86
 	LIBRETRO_CPU :=
 	ARCH :=
 	LIBRETRO_OS :=
